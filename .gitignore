@@ -1,0 +1,21 @@
+# ESPHome build & cache
+.esphome/
+.pioenvs/
+.piolibdeps/
+*.bin
+*.elf
+
+# Python environments
+venv/
+env/
+__pycache__/
+*.pyc
+
+# Sensitive user secrets
+secrets.yaml
+!secrets.yaml.example
+
+# OS generated files
+.DS_Store
+Thumbs.db
+*.log

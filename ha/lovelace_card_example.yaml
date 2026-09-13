@@ -1,0 +1,74 @@
+# ==============================================================================
+# 홈어시스턴트 태양광 인버터 추천 대시보드 카드 (Lovelace YAML)
+# ==============================================================================
+# 사용 방법:
+# 1. 홈어시스턴트 대시보드 우측 상단 점 3개 메뉴 > "대시보드 편집" 클릭
+# 2. "카드 추가" > 맨 아래 "수동(Manual)" 카드 선택
+# 3. 아래 YAML 코드를 그대로 복사하여 붙여넣고 저장하세요.
+# ==============================================================================
+
+type: vertical-stack
+cards:
+  # 1. 태양광 발전 요약 헤더 카드
+  - type: custom:mushroom-title-card
+    title: ☀️ 태양광 발전 현황
+    subtitle: 동양 E&P 인버터 실시간 모니터링
+
+  # 2. 핵심 계측 지표 (실시간 발전 전력 & 오늘 발전량)
+  - type: grid
+    columns: 2
+    square: false
+    cards:
+      - type: custom:mushroom-entity-card
+        entity: sensor.total_ac_power
+        name: 실시간 발전 전력
+        icon: mdi:solar-power
+        icon_color: amber
+        primary_info: state
+        secondary_info: name
+      - type: custom:mushroom-entity-card
+        entity: sensor.total_energy_today
+        name: 오늘 발전량
+        icon: mdi:calendar-today
+        icon_color: green
+        primary_info: state
+        secondary_info: name
+
+  # 3. 누적 발전량 및 세부 인버터 현황
+  - type: entities
+    title: 인버터별 상세 데이터
+    show_header_toggle: false
+    entities:
+      - entity: sensor.total_energy
+        name: 총 누적 발전량
+        icon: mdi:counter
+      - type: section
+        label: 인버터 1번
+      - entity: sensor.inv1_ac_power
+        name: 1번 발전 전력
+      - entity: sensor.inv1_energy_today
+        name: 1번 오늘 발전량
+      - entity: sensor.inv1_temperature
+        name: 1번 내부 온도
+      - type: section
+        label: 인버터 2번 (병렬 구성 시)
+      - entity: sensor.inv2_ac_power
+        name: 2번 발전 전력
+      - entity: sensor.inv2_energy_today
+        name: 2번 오늘 발전량
+      - entity: sensor.inv2_temperature
+        name: 2번 내부 온도
+
+  # 4. 통신 및 하드웨어 진단 상태
+  - type: entities
+    title: 시스템 및 통신 진단
+    show_header_toggle: false
+    entities:
+      - entity: binary_sensor.solar_inverter_status
+        name: 인버터 모니터 상태
+      - entity: sensor.solar_inverter_wifi_signal
+        name: Wi-Fi 신호 감도
+      - entity: sensor.inv1_packets_error
+        name: 1번 통신 에러 수신
+      - entity: sensor.inv2_packets_error
+        name: 2번 통신 에러 수신

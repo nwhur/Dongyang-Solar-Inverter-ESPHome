@@ -1,0 +1,335 @@
+# ==============================================================================
+# 동양(Dongyang) / 다스텍(Dastech) 태양광 인버터 2대 병렬 모니터링 ESPHome 설정
+# ==============================================================================
+
+preferences:
+  flash_write_interval: 5min # NVS 플래시 메모리 수명 보호를 위해 5분 단위 버퍼링 기록
+
+globals:
+  # 인버터 야간 전원 차단 및 ESP32 재부팅 시에도 발전량을 직전 값으로 복원하기 위한 NVS 전역 변수
+  - id: saved_i1_etod
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+  - id: saved_i1_etot
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+  - id: saved_i2_etod
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+  - id: saved_i2_etot
+    type: float
+    restore_value: yes
+    initial_value: '0.0'
+
+esphome:
+  name: solar-inverter
+  friendly_name: "Solar Inverter Monitor"
+  includes:
+    - dongyang_inverter.h
+  on_boot:
+    priority: -100
+    then:
+      - lambda: |-
+          // NVS 영구 저장소에서 복원된 발전량이 있으면 부팅 즉시 센서로 발행하여 unknown 공백 제거
+          if (id(saved_i1_etod) > 0.0f) id(i1_etod).publish_state(id(saved_i1_etod));
+          if (id(saved_i1_etot) > 0.0f) id(i1_etot).publish_state(id(saved_i1_etot));
+          if (id(saved_i2_etod) > 0.0f) id(i2_etod).publish_state(id(saved_i2_etod));
+          if (id(saved_i2_etot) > 0.0f) id(i2_etot).publish_state(id(saved_i2_etot));
+
+          my_inv_global = new DongyangInverter(id(uart_bus));
+          my_inv_global->set_inv1(id(i1_v), id(i1_a), id(i1_pdc), id(i1_vac), id(i1_aac), id(i1_pac), id(i1_t), id(i1_etod), id(i1_etot), id(i1_f));
+          my_inv_global->set_inv2(id(i2_v), id(i2_a), id(i2_pdc), id(i2_vac), id(i2_aac), id(i2_pac), id(i2_t), id(i2_etod), id(i2_etot), id(i2_f));
+          my_inv_global->set_diag1(id(i1_succ), id(i1_err), id(i1_tout));
+          my_inv_global->set_diag2(id(i2_succ), id(i2_err), id(i2_tout));
+          my_inv_global->set_storage(
+            &id(saved_i1_etod), &id(saved_i1_etot),
+            &id(saved_i2_etod), &id(saved_i2_etot)
+          );
+
+  on_loop:
+    then:
+      - lambda: |-
+          if (my_inv_global != nullptr) {
+            my_inv_global->loop();
+          }
+
+esp32:
+  board: esp32-s3-devkitc-1 # 일반 ESP32 사용 시 esp32dev 로 변경 가능
+  framework:
+    type: arduino
+
+logger:
+  level: INFO
+
+# HA API 연결이 5분 이상 끊기면 자동 재부팅하여 세션 복구
+api:
+  reboot_timeout: 5min
+
+ota:
+  - platform: esphome
+
+# Wi-Fi 설정 (secrets.yaml 파일에 등록된 정보를 참조합니다)
+wifi:
+  reboot_timeout: 1min
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+
+  # 연결 실패 시 비상 접속용 AP 모드 자동 활성화
+  ap:
+    ssid: "Solar-Inverter-Fallback"
+    password: !secret fallback_password
+
+captive_portal:
+
+# Bluetooth Proxy (수신 전용 모드로 활성화하여 바베큐 온도계, 식물 센서 등 BLE 광고 패킷을 HA로 중계)
+esp32_ble_tracker:
+
+bluetooth_proxy:
+  active: false
+
+# 10초마다 인버터 데이터 갱신 요청
+interval:
+  - interval: 10s
+    then:
+      - lambda: |-
+          if (my_inv_global != nullptr) {
+            my_inv_global->update();
+          }
+
+# RS-485 통신 UART 설정 (ESP32 핀에 맞게 변경 가능)
+uart:
+  id: uart_bus
+  tx_pin: 17
+  rx_pin: 16
+  baud_rate: 9600
+
+sensor:
+  # --------------------------------------------------------------------------
+  # 1번 인버터 (ID: 0x02) 센서 목록
+  # --------------------------------------------------------------------------
+  - platform: template
+    name: "Inv1 DC Voltage"
+    id: i1_v
+    unit_of_measurement: "V"
+    device_class: "voltage"
+  - platform: template
+    name: "Inv1 DC Current"
+    id: i1_a
+    unit_of_measurement: "A"
+    device_class: "current"
+  - platform: template
+    name: "Inv1 DC Power"
+    id: i1_pdc
+    unit_of_measurement: "W"
+    device_class: "power"
+  - platform: template
+    name: "Inv1 AC Voltage"
+    id: i1_vac
+    unit_of_measurement: "V"
+    device_class: "voltage"
+  - platform: template
+    name: "Inv1 AC Current"
+    id: i1_aac
+    unit_of_measurement: "A"
+    device_class: "current"
+  - platform: template
+    name: "Inv1 AC Power"
+    id: i1_pac
+    unit_of_measurement: "W"
+    device_class: "power"
+    state_class: "measurement"
+  - platform: template
+    name: "Inv1 Temperature"
+    id: i1_t
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+  - platform: template
+    name: "Inv1 Energy Today"
+    id: i1_etod
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+  - platform: template
+    name: "Inv1 Energy Total"
+    id: i1_etot
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+    state_class: "total_increasing"
+  - platform: template
+    name: "Inv1 Frequency"
+    id: i1_f
+    unit_of_measurement: "Hz"
+
+  # --------------------------------------------------------------------------
+  # 2번 인버터 (ID: 0x61) 센서 목록
+  # --------------------------------------------------------------------------
+  - platform: template
+    name: "Inv2 DC Voltage"
+    id: i2_v
+    unit_of_measurement: "V"
+    device_class: "voltage"
+  - platform: template
+    name: "Inv2 DC Current"
+    id: i2_a
+    unit_of_measurement: "A"
+    device_class: "current"
+  - platform: template
+    name: "Inv2 DC Power"
+    id: i2_pdc
+    unit_of_measurement: "W"
+    device_class: "power"
+  - platform: template
+    name: "Inv2 AC Voltage"
+    id: i2_vac
+    unit_of_measurement: "V"
+    device_class: "voltage"
+  - platform: template
+    name: "Inv2 AC Current"
+    id: i2_aac
+    unit_of_measurement: "A"
+    device_class: "current"
+  - platform: template
+    name: "Inv2 AC Power"
+    id: i2_pac
+    unit_of_measurement: "W"
+    device_class: "power"
+    state_class: "measurement"
+  - platform: template
+    name: "Inv2 Temperature"
+    id: i2_t
+    unit_of_measurement: "°C"
+    device_class: "temperature"
+  - platform: template
+    name: "Inv2 Energy Today"
+    id: i2_etod
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+  - platform: template
+    name: "Inv2 Energy Total"
+    id: i2_etot
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+    state_class: "total_increasing"
+  - platform: template
+    name: "Inv2 Frequency"
+    id: i2_f
+    unit_of_measurement: "Hz"
+
+  # --------------------------------------------------------------------------
+  # 종합 합산 발전 센서 (홈어시스턴트 에너지 대시보드 연동용)
+  # --------------------------------------------------------------------------
+  - platform: template
+    name: "Total AC Power"
+    id: total_ac_power
+    unit_of_measurement: "W"
+    device_class: "power"
+    state_class: "measurement"
+    update_interval: 10s
+    lambda: |-
+      float p1 = id(i1_pac).has_state() ? id(i1_pac).state : 0;
+      float p2 = id(i2_pac).has_state() ? id(i2_pac).state : 0;
+      return p1 + p2;
+  
+  - platform: template
+    name: "Total Energy"
+    id: total_energy
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+    state_class: "total_increasing"
+    update_interval: 10s
+    lambda: |-
+      if (id(i1_etot).has_state() && id(i2_etot).has_state()) {
+        return id(i1_etot).state + id(i2_etot).state;
+      }
+      return NAN;
+
+  - platform: template
+    name: "Total Energy Today"
+    id: total_energy_today
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+    state_class: "total_increasing"
+    update_interval: 10s
+    lambda: |-
+      if (id(i1_etod).has_state() && id(i2_etod).has_state()) {
+        return id(i1_etod).state + id(i2_etod).state;
+      }
+      return NAN;
+
+  # --------------------------------------------------------------------------
+  # 시스템 진단 센서
+  # --------------------------------------------------------------------------
+  - platform: uptime
+    name: "Solar Inverter Uptime"
+    id: sys_uptime
+    update_interval: 60s
+
+  - platform: wifi_signal
+    name: "Solar Inverter WiFi Signal"
+    id: sys_wifi_signal
+    update_interval: 60s
+
+  # --------------------------------------------------------------------------
+  # 통신 품질 진단 센서 (에러율 0% 모니터링)
+  # --------------------------------------------------------------------------
+  - platform: template
+    name: "Inv1 Packets Success"
+    id: i1_succ
+    entity_category: "diagnostic"
+    accuracy_decimals: 0
+    state_class: "total_increasing"
+
+  - platform: template
+    name: "Inv1 Packets Error"
+    id: i1_err
+    entity_category: "diagnostic"
+    accuracy_decimals: 0
+    state_class: "total_increasing"
+
+  - platform: template
+    name: "Inv1 Timeouts"
+    id: i1_tout
+    entity_category: "diagnostic"
+    accuracy_decimals: 0
+    state_class: "total_increasing"
+
+  - platform: template
+    name: "Inv2 Packets Success"
+    id: i2_succ
+    entity_category: "diagnostic"
+    accuracy_decimals: 0
+    state_class: "total_increasing"
+
+  - platform: template
+    name: "Inv2 Packets Error"
+    id: i2_err
+    entity_category: "diagnostic"
+    accuracy_decimals: 0
+    state_class: "total_increasing"
+
+  - platform: template
+    name: "Inv2 Timeouts"
+    id: i2_tout
+    entity_category: "diagnostic"
+    accuracy_decimals: 0
+    state_class: "total_increasing"
+
+binary_sensor:
+  - platform: status
+    name: "Solar Inverter Status"
+
+text_sensor:
+  - platform: wifi_info
+    ip_address:
+      name: "Solar Inverter IP Address"
+    ssid:
+      name: "Solar Inverter Connected SSID"
+  - platform: version
+    name: "Solar Inverter ESPHome Version"
+
+button:
+  - platform: restart
+    name: "Solar Inverter Restart"
