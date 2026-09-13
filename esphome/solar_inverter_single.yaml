@@ -30,6 +30,9 @@ esphome:
           if (id(saved_i1_etot) > 0.0f) id(i1_etot).publish_state(id(saved_i1_etot));
 
           my_inv_global = new DongyangInverter(id(uart_bus));
+          // [인버터 ID 설정]: 인버터 국번 ID가 1번인 경우 아래를 0x01로 변경하세요 (기본값: 0x02)
+          my_inv_global->set_inv1_id(0x02);
+
           my_inv_global->set_inv1(id(i1_v), id(i1_a), id(i1_pdc), id(i1_vac), id(i1_aac), id(i1_pac), id(i1_t), id(i1_etod), id(i1_etot), id(i1_f));
           my_inv_global->set_diag1(id(i1_succ), id(i1_err), id(i1_tout));
           my_inv_global->set_storage(&id(saved_i1_etod), &id(saved_i1_etot));
@@ -42,7 +45,11 @@ esphome:
           }
 
 esp32:
-  board: esp32-s3-devkitc-1 # 일반 ESP32 사용 시 esp32dev 로 변경 가능
+  # [보드 타입 선택]
+  # 1) ESP32-S3 보드를 사용하는 경우 아래 행 사용:
+  board: esp32-s3-devkitc-1
+  # 2) 일반 ESP32 (NodeMCU, DevKit v1, ESP-WROOM-32 등)를 사용하는 경우 위 행을 주석(#) 처리하고 아래 행의 주석을 푸세요:
+  # board: esp32dev
   framework:
     type: arduino
 
@@ -85,7 +92,9 @@ interval:
             my_inv_global->update();
           }
 
-# RS-485 통신 UART 설정 (ESP32 핀에 맞게 변경 가능)
+# RS-485 통신 UART 설정
+# ESP32-S3 및 일반 ESP32(esp32dev) 모두 GPIO 16(RX2), 17(TX2)이 표준 하드웨어 UART 핀입니다.
+# (단, ESP32-WROVER 등 PSRAM 내장 모듈의 경우 GPIO 18/19 등 일반 핀으로 변경하세요)
 uart:
   id: uart_bus
   tx_pin: 17
@@ -94,7 +103,31 @@ uart:
 
 sensor:
   # --------------------------------------------------------------------------
-  # 1번 인버터 (ID: 0x02) 센서 목록
+  # 핵심 발전 계측 센서 (홈어시스턴트 에너지 대시보드 및 Lovelace 카드 표준 연동)
+  # --------------------------------------------------------------------------
+  - platform: template
+    name: "Total AC Power"
+    id: i1_pac
+    unit_of_measurement: "W"
+    device_class: "power"
+    state_class: "measurement"
+
+  - platform: template
+    name: "Total Energy Today"
+    id: i1_etod
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+    state_class: "total_increasing"
+
+  - platform: template
+    name: "Total Energy"
+    id: i1_etot
+    unit_of_measurement: "kWh"
+    device_class: "energy"
+    state_class: "total_increasing"
+
+  # --------------------------------------------------------------------------
+  # 인버터 상세 전기 계측 센서
   # --------------------------------------------------------------------------
   - platform: template
     name: "Solar DC Voltage"
@@ -122,27 +155,10 @@ sensor:
     unit_of_measurement: "A"
     device_class: "current"
   - platform: template
-    name: "Solar AC Power"
-    id: i1_pac
-    unit_of_measurement: "W"
-    device_class: "power"
-    state_class: "measurement"
-  - platform: template
     name: "Solar Temperature"
     id: i1_t
     unit_of_measurement: "°C"
     device_class: "temperature"
-  - platform: template
-    name: "Solar Energy Today"
-    id: i1_etod
-    unit_of_measurement: "kWh"
-    device_class: "energy"
-  - platform: template
-    name: "Solar Energy Total"
-    id: i1_etot
-    unit_of_measurement: "kWh"
-    device_class: "energy"
-    state_class: "total_increasing"
   - platform: template
     name: "Solar Frequency"
     id: i1_f

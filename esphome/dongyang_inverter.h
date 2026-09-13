@@ -6,6 +6,10 @@
 // PollingComponent를 상속받아 주기적으로 실행되며, UARTDevice를 상속받아 RS-485 시리얼 통신을 수행합니다.
 class DongyangInverter : public PollingComponent, public UARTDevice {
 public:
+  // 1번 및 2번 인버터의 국번 ID (기본값: 1번 0x02, 2번 0x61. 가정 환경에 따라 set_inv1_id 등으로 변경 가능)
+  uint8_t inv1_id = 0x02;
+  uint8_t inv2_id = 0x61;
+
   // 1번 및 2번 인버터의 측정 데이터를 저장할 센서 포인터 배열 (각 10개)
   // [0]: DC Voltage (V)
   // [1]: DC Current (A)
@@ -46,6 +50,10 @@ public:
       diag_2[i] = nullptr;
     }
   }
+
+  // 인버터 ID 설정 (기본값: 1번 0x02, 2번 0x61)
+  void set_inv1_id(uint8_t id) { inv1_id = id; }
+  void set_inv2_id(uint8_t id) { inv2_id = id; }
 
   // 1번 인버터 센서 등록
   void set_inv1(Sensor* v, Sensor* a, Sensor* pdc, Sensor* vac, Sensor* aac, Sensor* pac, Sensor* temp, Sensor* etoday, Sensor* etotal, Sensor* freq) {
@@ -101,13 +109,14 @@ public:
 
   // Polling 주기(yaml에서 설정된 interval)마다 실행되는 데이터 폴링 시작 함수
   void update() override {
-    ESP_LOGD("Dongyang", "--- [RS485] 1번 인버터 데이터 요청 전송 ---");
+    ESP_LOGD("Dongyang", "--- [RS485] 1번 인버터(ID: 0x%02X) 데이터 요청 전송 ---", inv1_id);
     flush_rx();
     rx_buffer.clear();
     state = 1;
     
-    // 1번 인버터 질의 프레임 (ID: 0x02)
-    uint8_t req1[] = {0x0A, 0x96, 0x02, 0x54, 0x18, 0x05, 0x6E};
+    // 1번 인버터 질의 프레임: 7바이트 [0x0A, 0x96, ID, 0x54, 0x18, 0x05, (ID + 0x54 + 0x18) & 0xFF]
+    uint8_t chk1 = (uint8_t)(inv1_id + 0x54 + 0x18);
+    uint8_t req1[] = {0x0A, 0x96, inv1_id, 0x54, 0x18, 0x05, chk1};
     write_array(req1, 7);
     wait_start = millis();
   }
@@ -145,9 +154,9 @@ public:
         flush_rx();
         rx_buffer.clear();
         state = 2;
-        ESP_LOGD("Dongyang", "--- [RS485] 2번 인버터 데이터 요청 전송 ---");
-        // 2번 인버터 질의 프레임 (ID: 0x61)
-        uint8_t req2[] = {0x0A, 0x96, 0x61, 0x54, 0x18, 0x05, 0xCD};
+        ESP_LOGD("Dongyang", "--- [RS485] 2번 인버터(ID: 0x%02X) 데이터 요청 전송 ---", inv2_id);
+        uint8_t chk2 = (uint8_t)(inv2_id + 0x54 + 0x18);
+        uint8_t req2[] = {0x0A, 0x96, inv2_id, 0x54, 0x18, 0x05, chk2};
         write_array(req2, 7);
         wait_start = millis();
       }
@@ -162,12 +171,16 @@ public:
         rx_buffer.push_back(b);
       }
 
-      // [슬라이딩 윈도우 동기화] 0xB1 0xB7 헤더가 버퍼 맨 앞으로 오도록 유효하지 않은 프리앰블 바이트 제거
-      while (!rx_buffer.empty() && rx_buffer[0] != 0xB1) {
+      // [슬라이딩 윈도우 동기화] 0xB1 0xB7 헤더가 버퍼 맨 앞으로 올 때까지 선두 바이트 제거
+      while (rx_buffer.size() >= 2 && (rx_buffer[0] != 0xB1 || rx_buffer[1] != 0xB7)) {
         rx_buffer.erase(rx_buffer.begin());
       }
-      if (rx_buffer.size() >= 2 && rx_buffer[1] != 0xB7) {
-        rx_buffer.erase(rx_buffer.begin());
+      if (rx_buffer.size() == 1 && rx_buffer[0] != 0xB1) {
+        rx_buffer.clear();
+      }
+      // 통신선 잡음으로 인한 비정상 버퍼 팽창 방지 안전장치
+      if (rx_buffer.size() > 128) {
+        rx_buffer.clear();
       }
 
       // 32바이트 완전한 프레임이 수신되었을 때
@@ -235,13 +248,13 @@ public:
     }
 
     // 2. 응답 인버터 ID 일치 검증
-    uint8_t expected_id = (inv_num == 1) ? 0x02 : 0x61;
+    uint8_t expected_id = (inv_num == 1) ? inv1_id : inv2_id;
     if (rx_buffer[2] != expected_id) {
       ESP_LOGW("Dongyang", "인버터 ID 불일치! 기대값: 0x%02X, 실제수신: 0x%02X", expected_id, rx_buffer[2]);
       return false;
     }
 
-    // 3. XOR 체크섬 검증
+    // 3. XOR 체크섬 검증 (0~30번 바이트의 XOR 합이 31번 바이트와 일치해야 함)
     uint8_t sum = 0;
     for (int i = 0; i < 31; i++) {
       sum ^= rx_buffer[i];

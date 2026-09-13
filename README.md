@@ -102,15 +102,15 @@ graph LR
 ### 5단계: Home Assistant 기기 자동 감지 및 엔티티 확인
 1. 펌웨어 설치가 완료되면 Home Assistant의 **설정 > 기기 및 서비스**에 새 ESPHome 장치(`Solar Inverter Monitor`)가 자동으로 발견(Discovery)됩니다.
 2. **[구성(Configure)]**을 누르고 제출하면 모든 인버터 측정 센서가 자동으로 등록됩니다.
-   * **실시간 발전 출력:** `sensor.total_ac_power` (W)
-   * **금일 발전량:** `sensor.total_energy_today` (kWh)
-   * **누적 발전량:** `sensor.total_energy` (kWh)
-   * **전압/전류/온도:** `sensor.inv1_ac_power`, `sensor.inv1_temperature` 등
+   * **실시간 발전 출력:** `sensor.solar_inverter_total_ac_power` (W)
+   * **금일 발전량:** `sensor.solar_inverter_total_energy_today` (kWh)
+   * **누적 발전량:** `sensor.solar_inverter_total_energy` (kWh)
+   * **전압/전류/온도:** `sensor.solar_inverter_inv1_ac_power`, `sensor.solar_inverter_inv1_temperature` 등
 
 ### 6단계: HA 에너지 대시보드(Energy Dashboard) 연동
 1. Home Assistant **설정 > 대시보드 > 에너지** 메뉴로 이동합니다.
 2. **"태양광 패널(Solar panels)"** 항목에서 **[태양광 생산량 추가(Add solar production)]**를 클릭합니다.
-3. 에너지 센서로 **`sensor.total_energy`** (단독의 경우 `sensor.solar_energy_total`)를 선택하고 저장합니다.
+3. 에너지 센서로 **`sensor.solar_inverter_total_energy`** 를 선택하고 저장합니다. (1대 단독/2대 병렬 모두 동일)
 4. 이제 홈어시스턴트 공식 에너지 플로우 다이어그램에서 실시간 발전량과 일일 통계가 자동으로 그래프에 반영됩니다!
 
 ---
