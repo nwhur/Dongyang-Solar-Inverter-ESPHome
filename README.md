@@ -20,7 +20,7 @@
   * 일몰 후 인버터 내부 전원이 꺼지거나 ESP32가 재부팅되어도 **오늘 발전량(`energy_today`)**과 **누적 발전량(`energy_total`)**이 `unknown`이나 `0`으로 초기화되지 않고 직전 수치를 안전하게 복구·유지
   * 5분 버퍼링 커밋(`flash_write_interval: 5min`)으로 ESP32 플래시 메모리 쓰기 수명을 10년 이상 보호
 * **📡 패시브 Bluetooth Proxy 병행 구동:**
-  * `bluetooth_proxy: active: false` 설정으로 인버터 시리얼 통신에 부하를 주지 않으면서 바베큐 온도계(Inkbird), 식물 화분 센서 등 주변 BLE 비콘 패킷을 홈어시스턴트로 자동 중계
+  * `bluetooth_proxy: active: false` 설정으로 인버터 시리얼 통신에 부하를 주지 않으면서 주변 BLE 비콘 패킷을 홈어시스턴트로 자동 중계
 * **📊 홈어시스턴트 에너지 대시보드 공식 완벽 호환:**
   * 별도의 복잡한 리만 합(Riemann sum) 적분 변환 없이도 홈어시스턴트 공식 "에너지(Energy)" 대시보드의 태양광 발전 항목에 1클릭 매핑 가능
 
