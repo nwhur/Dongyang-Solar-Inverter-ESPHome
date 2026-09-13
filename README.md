@@ -91,6 +91,7 @@ graph LR
 3. 사용하실 YAML 파일(`solar_inverter_single.yaml` 또는 `solar_inverter_dual.yaml`)의 상단 보드 설정이 본인의 ESP32 보드와 일치하는지 확인합니다.
    * ESP32-S3 사용 시: `board: esp32-s3-devkitc-1` (기본값)
    * 일반 ESP32 사용 시: `board: esp32dev` 로 수정
+4. **인버터 통신 ID 입력:** 인버터 본체 측면 라벨의 **시리얼 번호(S/N) 끝 2자리 숫자**를 확인한 후, YAML 파일의 `my_inv_global->set_inv1_id(숫자);` 에 10진수 그대로 입력합니다. (예: S/N 끝이 `02`면 `2`, `15`면 `15`, `97`이면 `97`)
 
 ### 4단계: ESP32 최초 펌웨어 플래싱
 1. **최초 1회 유선 설치:**

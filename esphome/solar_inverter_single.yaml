@@ -30,8 +30,11 @@ esphome:
           if (id(saved_i1_etot) > 0.0f) id(i1_etot).publish_state(id(saved_i1_etot));
 
           my_inv_global = new DongyangInverter(id(uart_bus));
-          // [인버터 ID 설정]: 인버터 국번 ID가 1번인 경우 아래를 0x01로 변경하세요 (기본값: 0x02)
-          my_inv_global->set_inv1_id(0x02);
+          // [인버터 통신 ID 설정]
+          // 동양 인버터의 통신 ID는 본체 라벨의 '시리얼 번호(S/N) 끝 2자리 숫자'입니다.
+          // (예: 시리얼이 ...02로 끝나면 2 또는 0x02, ...15로 끝나면 15 또는 0x0F)
+          // 10진수 숫자를 그대로 입력하시면 됩니다:
+          my_inv_global->set_inv1_id(2);
 
           my_inv_global->set_inv1(id(i1_v), id(i1_a), id(i1_pdc), id(i1_vac), id(i1_aac), id(i1_pac), id(i1_t), id(i1_etod), id(i1_etot), id(i1_f));
           my_inv_global->set_diag1(id(i1_succ), id(i1_err), id(i1_tout));
