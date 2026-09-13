@@ -44,7 +44,7 @@ graph LR
         MOD_GND["GND"]
         MOD_TX["TXD"]
         MOD_RX["RXD"]
-        R0["[R0 패드 납땜 쇼트]<br/>120Ω 종단 저항 활성화"]
+        R0["R0 패드 납땜 쇼트 (120Ω 종단 저항 활성화)"]
     end
 
     subgraph "ESP32 Board"
@@ -54,8 +54,8 @@ graph LR
         ESP_TX["GPIO 17 (TX)"]
     end
 
-    INV_A <==>|2선식 케이블| MOD_A
-    INV_B <==>|2선식 케이블| MOD_B
+    INV_A <-->|2선식 케이블| MOD_A
+    INV_B <-->|2선식 케이블| MOD_B
 
     MOD_VCC -->|점퍼선| ESP_3V3
     MOD_GND -->|점퍼선| ESP_GND
