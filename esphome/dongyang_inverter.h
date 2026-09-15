@@ -1,6 +1,11 @@
 #pragma once
 #include "esphome.h"
 #include <vector>
+#include <string>
+
+using esphome::sensor::Sensor;
+using esphome::binary_sensor::BinarySensor;
+using esphome::text_sensor::TextSensor;
 
 // 동양(Dongyang) / 다스텍(Dastech) 태양광 인버터 RS485 통신 커스텀 컴포넌트
 // PollingComponent를 상속받아 주기적으로 실행되며, UARTDevice를 상속받아 RS-485 시리얼 통신을 수행합니다.
@@ -23,6 +28,16 @@ public:
   // [9]: Frequency (Hz)
   Sensor *sensors_1[10];
   Sensor *sensors_2[10];
+
+  // 1번 및 2번 인버터의 확장 센서 (RUN 상태, Fault Code, 역률, 가동 시간)
+  BinarySensor *run_1 = nullptr;
+  BinarySensor *run_2 = nullptr;
+  TextSensor *fault_1 = nullptr;
+  TextSensor *fault_2 = nullptr;
+  Sensor *pf_1 = nullptr;
+  Sensor *pf_2 = nullptr;
+  Sensor *optime_1 = nullptr;
+  Sensor *optime_2 = nullptr;
 
   // 1번 및 2번 인버터의 통신 품질 진단 센서 (0: 성공 횟수, 1: 에러 횟수, 2: 타임아웃 횟수)
   Sensor *diag_1[3];
@@ -66,6 +81,42 @@ public:
     sensors_2[0] = v; sensors_2[1] = a; sensors_2[2] = pdc; sensors_2[3] = vac; sensors_2[4] = aac;
     sensors_2[5] = pac; sensors_2[6] = temp; sensors_2[7] = etoday; sensors_2[8] = etotal; sensors_2[9] = freq;
     num_inverters = 2;
+  }
+
+  // 1번 및 2번 인버터 확장 센서 등록 (RUN 상태, Fault Code, 역률, 가동 시간)
+  void set_extra1(BinarySensor* run, TextSensor* fault, Sensor* pf, Sensor* optime) {
+    run_1 = run; fault_1 = fault; pf_1 = pf; optime_1 = optime;
+  }
+  void set_extra2(BinarySensor* run, TextSensor* fault, Sensor* pf, Sensor* optime) {
+    run_2 = run; fault_2 = fault; pf_2 = pf; optime_2 = optime;
+  }
+
+  // Fault Code 비트마스크 한국어 디코딩 함수
+  std::string decode_fault(uint32_t code) {
+    if (code == 0) return "정상";
+    std::string res = "";
+    if (code & 0x00000001) res += (res.empty() ? "" : ", ") + std::string("태양전지과전류");
+    if (code & 0x00000002) res += (res.empty() ? "" : ", ") + std::string("태양전지과전압");
+    if (code & 0x00000004) res += (res.empty() ? "" : ", ") + std::string("태양전지저전압");
+    if (code & 0x00000008) res += (res.empty() ? "" : ", ") + std::string("DCLink과전압");
+    if (code & 0x00000010) res += (res.empty() ? "" : ", ") + std::string("DCLink저전압");
+    if (code & 0x00000020) res += (res.empty() ? "" : ", ") + std::string("인버터과전류");
+    if (code & 0x00000040) res += (res.empty() ? "" : ", ") + std::string("계통과전압");
+    if (code & 0x00000080) res += (res.empty() ? "" : ", ") + std::string("계통저전압");
+    if (code & 0x00000100) res += (res.empty() ? "" : ", ") + std::string("내부온도초과");
+    if (code & 0x00000200) res += (res.empty() ? "" : ", ") + std::string("계통과주파수");
+    if (code & 0x00000400) res += (res.empty() ? "" : ", ") + std::string("계통저주파수");
+    if (code & 0x00000800) res += (res.empty() ? "" : ", ") + std::string("태양전지과전력");
+    if (code & 0x00001000) res += (res.empty() ? "" : ", ") + std::string("DC성분규정치초과");
+    if (code & 0x00002000) res += (res.empty() ? "" : ", ") + std::string("DC배선누전");
+    if (code & 0x00010000) res += (res.empty() ? "" : ", ") + std::string("단독운전");
+    if (code & 0x00020000) res += (res.empty() ? "" : ", ") + std::string("인버터과전류HW");
+    if (res.empty()) {
+      char hex_buf[32];
+      snprintf(hex_buf, sizeof(hex_buf), "기타오류(0x%08X)", (unsigned int)code);
+      res = hex_buf;
+    }
+    return res;
   }
 
   // 1번 인버터 진단 센서 등록
@@ -133,6 +184,14 @@ public:
     if (!s[5]->has_state() || s[5]->state != 0.0) s[5]->publish_state(0.0); // AC W
     if (!s[9]->has_state() || s[9]->state != 0.0) s[9]->publish_state(0.0); // Freq
     // ※ 발전량(etoday, etotal)은 0으로 만들지 않고 직전 누적값을 유지합니다.
+
+    BinarySensor *run = (inv_num == 1) ? run_1 : run_2;
+    TextSensor *fault = (inv_num == 1) ? fault_1 : fault_2;
+    Sensor *pf = (inv_num == 1) ? pf_1 : pf_2;
+
+    if (run != nullptr && (!run->has_state() || run->state != false)) run->publish_state(false);
+    if (fault != nullptr && (!fault->has_state() || fault->state != "통신 대기(야간)")) fault->publish_state("통신 대기(야간)");
+    if (pf != nullptr && (!pf->has_state() || pf->state != 0.0f)) pf->publish_state(0.0f);
   }
 
   // 통신 진단 통계 엔티티 업데이트
@@ -279,7 +338,20 @@ public:
     
     // 누적 발전량은 3바이트 정수(kWh)
     uint32_t e_total = rx_buffer[17] | (rx_buffer[18] << 8) | (rx_buffer[19] << 16);
+
+    // 20~23: Fault Code (4 bytes Little-Endian uint32)
+    uint32_t fault_code = rx_buffer[20] | (rx_buffer[21] << 8) | (rx_buffer[22] << 16) | (rx_buffer[23] << 24);
+
+    // 24: RUN Status (1: RUN / 0: STOP)
+    uint8_t run_status = rx_buffer[24];
+
     float freq = ((rx_buffer[26] << 8) | rx_buffer[25]) / 10.0;
+
+    // 27~28: Operation time (2 bytes Little-Endian uint16, min)
+    uint16_t op_time = rx_buffer[27] | (rx_buffer[28] << 8);
+
+    // 29: Power Factor (/100)
+    float pf = rx_buffer[29] / 100.0f;
 
     // 5. 홈어시스턴트 센서 엔티티로 발행
     Sensor **s = (inv_num == 1) ? sensors_1 : sensors_2;
@@ -295,6 +367,16 @@ public:
       s[8]->publish_state(e_total);
       s[9]->publish_state(freq);
     }
+
+    BinarySensor *run = (inv_num == 1) ? run_1 : run_2;
+    TextSensor *fault = (inv_num == 1) ? fault_1 : fault_2;
+    Sensor *pf_s = (inv_num == 1) ? pf_1 : pf_2;
+    Sensor *optime_s = (inv_num == 1) ? optime_1 : optime_2;
+
+    if (run != nullptr) run->publish_state(run_status == 1);
+    if (fault != nullptr) fault->publish_state(decode_fault(fault_code));
+    if (pf_s != nullptr) pf_s->publish_state(pf);
+    if (optime_s != nullptr) optime_s->publish_state(op_time);
 
     // 6. NVS 영구 저장소에 실시간 반영 (재부팅 및 야간 전원 오프 대비)
     if (inv_num == 1) {

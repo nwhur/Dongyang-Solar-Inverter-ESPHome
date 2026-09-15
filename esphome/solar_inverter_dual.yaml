@@ -49,12 +49,16 @@ esphome:
 
           my_inv_global->set_inv1(id(i1_v), id(i1_a), id(i1_pdc), id(i1_vac), id(i1_aac), id(i1_pac), id(i1_t), id(i1_etod), id(i1_etot), id(i1_f));
           my_inv_global->set_inv2(id(i2_v), id(i2_a), id(i2_pdc), id(i2_vac), id(i2_aac), id(i2_pac), id(i2_t), id(i2_etod), id(i2_etot), id(i2_f));
+          my_inv_global->set_extra1(id(i1_run), id(i1_fault), id(i1_pf), id(i1_optime));
+          my_inv_global->set_extra2(id(i2_run), id(i2_fault), id(i2_pf), id(i2_optime));
           my_inv_global->set_diag1(id(i1_succ), id(i1_err), id(i1_tout));
           my_inv_global->set_diag2(id(i2_succ), id(i2_err), id(i2_tout));
           my_inv_global->set_storage(
             &id(saved_i1_etod), &id(saved_i1_etot),
             &id(saved_i2_etod), &id(saved_i2_etot)
           );
+          my_inv_global->publish_zero(1);
+          my_inv_global->publish_zero(2);
 
   on_loop:
     then:
@@ -173,6 +177,19 @@ sensor:
     name: "Inv1 Frequency"
     id: i1_f
     unit_of_measurement: "Hz"
+  - platform: template
+    name: "Inv1 Power Factor"
+    id: i1_pf
+    accuracy_decimals: 2
+    icon: "mdi:cosine-wave"
+  - platform: template
+    name: "Inv1 Operation Time"
+    id: i1_optime
+    unit_of_measurement: "min"
+    device_class: "duration"
+    state_class: "total_increasing"
+    accuracy_decimals: 0
+    icon: "mdi:clock-outline"
 
   # --------------------------------------------------------------------------
   # 2번 인버터 (ID: 0x61) 센서 목록
@@ -228,6 +245,19 @@ sensor:
     name: "Inv2 Frequency"
     id: i2_f
     unit_of_measurement: "Hz"
+  - platform: template
+    name: "Inv2 Power Factor"
+    id: i2_pf
+    accuracy_decimals: 2
+    icon: "mdi:cosine-wave"
+  - platform: template
+    name: "Inv2 Operation Time"
+    id: i2_optime
+    unit_of_measurement: "min"
+    device_class: "duration"
+    state_class: "total_increasing"
+    accuracy_decimals: 0
+    icon: "mdi:clock-outline"
 
   # --------------------------------------------------------------------------
   # 종합 합산 발전 센서 (홈어시스턴트 에너지 대시보드 연동용)
@@ -331,6 +361,25 @@ sensor:
 binary_sensor:
   - platform: status
     name: "Solar Inverter Status"
+  - platform: template
+    name: "Inv1 RUN Status"
+    id: i1_run
+    device_class: running
+    icon: "mdi:solar-power"
+  - platform: template
+    name: "Inv2 RUN Status"
+    id: i2_run
+    device_class: running
+    icon: "mdi:solar-power"
+  - platform: template
+    name: "Total RUN Status"
+    id: total_run
+    device_class: running
+    icon: "mdi:solar-power-variant"
+    lambda: |-
+      bool r1 = id(i1_run).has_state() && id(i1_run).state;
+      bool r2 = id(i2_run).has_state() && id(i2_run).state;
+      return r1 || r2;
 
 text_sensor:
   - platform: wifi_info
@@ -340,6 +389,14 @@ text_sensor:
       name: "Solar Inverter Connected SSID"
   - platform: version
     name: "Solar Inverter ESPHome Version"
+  - platform: template
+    name: "Inv1 Fault Code"
+    id: i1_fault
+    icon: "mdi:alert-circle-outline"
+  - platform: template
+    name: "Inv2 Fault Code"
+    id: i2_fault
+    icon: "mdi:alert-circle-outline"
 
 button:
   - platform: restart

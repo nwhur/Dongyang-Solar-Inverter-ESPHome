@@ -37,8 +37,10 @@ esphome:
           my_inv_global->set_inv1_id(2);
 
           my_inv_global->set_inv1(id(i1_v), id(i1_a), id(i1_pdc), id(i1_vac), id(i1_aac), id(i1_pac), id(i1_t), id(i1_etod), id(i1_etot), id(i1_f));
+          my_inv_global->set_extra1(id(i1_run), id(i1_fault), id(i1_pf), id(i1_optime));
           my_inv_global->set_diag1(id(i1_succ), id(i1_err), id(i1_tout));
           my_inv_global->set_storage(&id(saved_i1_etod), &id(saved_i1_etot));
+          my_inv_global->publish_zero(1);
 
   on_loop:
     then:
@@ -166,6 +168,19 @@ sensor:
     name: "Solar Frequency"
     id: i1_f
     unit_of_measurement: "Hz"
+  - platform: template
+    name: "Solar Power Factor"
+    id: i1_pf
+    accuracy_decimals: 2
+    icon: "mdi:cosine-wave"
+  - platform: template
+    name: "Solar Operation Time"
+    id: i1_optime
+    unit_of_measurement: "min"
+    device_class: "duration"
+    state_class: "total_increasing"
+    accuracy_decimals: 0
+    icon: "mdi:clock-outline"
 
   # --------------------------------------------------------------------------
   # 시스템 진단 센서
@@ -207,6 +222,11 @@ sensor:
 binary_sensor:
   - platform: status
     name: "Solar Inverter Status"
+  - platform: template
+    name: "Solar RUN Status"
+    id: i1_run
+    device_class: running
+    icon: "mdi:solar-power"
 
 text_sensor:
   - platform: wifi_info
@@ -216,6 +236,10 @@ text_sensor:
       name: "Solar Inverter Connected SSID"
   - platform: version
     name: "Solar Inverter ESPHome Version"
+  - platform: template
+    name: "Solar Fault Code"
+    id: i1_fault
+    icon: "mdi:alert-circle-outline"
 
 button:
   - platform: restart
