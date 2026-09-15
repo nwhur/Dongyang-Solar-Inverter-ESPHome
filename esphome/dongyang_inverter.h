@@ -265,13 +265,24 @@ public:
     }
 
     // 4. Little-Endian 원시 데이터 환산
-    float v_dc = ((rx_buffer[4] << 8) | rx_buffer[3]) / 10.0;
-    float a_dc = ((rx_buffer[6] << 8) | rx_buffer[5]) / 10.0;
-    float p_dc = v_dc * a_dc;
+    float v_dc = ((rx_buffer[4] << 8) | rx_buffer[3]) / 10.0f;
+    float a_dc = ((rx_buffer[6] << 8) | rx_buffer[5]) / 10.0f;
 
-    float v_ac = ((rx_buffer[10] << 8) | rx_buffer[9]) / 10.0;
-    float a_ac = ((rx_buffer[12] << 8) | rx_buffer[11]) / 10.0;
-    float p_ac = v_ac * a_ac;
+    float v_ac = ((rx_buffer[10] << 8) | rx_buffer[9]) / 10.0f;
+    float a_ac = ((rx_buffer[12] << 8) | rx_buffer[11]) / 10.0f;
+
+    // 일몰 직후 또는 발전 정지 시 LC 필터 무효전류(2.4A)로 인한 피상전력 착시 방지:
+    // 태양광 DC 입력 전류가 없으면 실제 유효 발전 전력 및 출력 전류를 0으로 처리
+    float p_dc = 0.0f;
+    float p_ac = 0.0f;
+    if (a_dc <= 0.05f) {
+      a_ac = 0.0f;
+      p_ac = 0.0f;
+      p_dc = 0.0f;
+    } else {
+      p_dc = v_dc * a_dc;
+      p_ac = v_ac * a_ac;
+    }
 
     float temp = ((rx_buffer[14] << 8) | rx_buffer[13]) / 10.0;
     float e_today = ((rx_buffer[16] << 8) | rx_buffer[15]) / 100.0;
